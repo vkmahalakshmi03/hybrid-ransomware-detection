@@ -1,79 +1,106 @@
 # Hybrid Ransomware Detection: A Survey of Current Technologies
 
 **Author:** Mahalakshmi Karthikeyan  
-**Focus Area:** Security Operations · Threat Detection · Endpoint Security
-
----
-
-## How to Read This Repo
-
-Start here with the README for the full picture. Then go to `model/hybrid_model_design.md` to see the proposed detection architecture. From there, `analysis/detection_methods_comparison.md` explains what each detection approach does and where it breaks down. Everything else — the methodology, algorithm analysis, and references — supports those two core documents.
+**Focus:** Security Operations · Threat Detection · Endpoint Security
 
 ---
 
 ## Overview
 
-Ransomware has moved from opportunistic attacks to coordinated, targeted campaigns.
-LockBit 3.0 disrupted global logistics and healthcare networks throughout 2023.
-BlackCat/ALPHV brought down Change Healthcare in 2024, impacting 100+ million patient
-records. WannaCry and the Colonial Pipeline attack demonstrated how a single intrusion
-can cascade across critical infrastructure.
+Ransomware has shifted from opportunistic attacks to coordinated campaigns targeting critical infrastructure. LockBit 3.0, BlackCat/ALPHV, WannaCry, and the Colonial Pipeline attack all share a common thread — existing detection systems failed to catch novel variants early enough.
 
-What these incidents share — the detection systems in place failed to catch novel
-variants early enough. This research examines why, and proposes a hybrid detection
-model that addresses the core gap.
-
-I reviewed 20+ ransomware detection studies across three methodologies —
-signature-based, behavioral, and machine learning — and found a consistent pattern:
-no single approach handles both known variants and zero-day threats without trading
-off real-time performance or false positive rates.
+This research surveys 20+ detection studies across signature-based, behavioral, and machine learning methodologies and proposes a hybrid detection model that addresses the failure modes no single approach can cover alone. The focus throughout is on what actually works in production environments, not just what performs well in research evaluations.
 
 ---
 
 ## Research Problem
 
-The three failure points that existing detection systems don't solve together:
+Three detection methods exist. Each has a structural failure mode the others don't share:
 
-- **Signature-based methods** fail against new and polymorphic variants — LockBit
-  alone has released multiple versions specifically designed to evade signature databases
-- **Behavior-based methods** generate excessive false positives when legitimate
-  processes mirror ransomware activity (mass file operations, encryption tasks)
-- **ML models** struggle with real-time detection and require large labeled datasets
-  that rarely reflect the latest ransomware families
+| Approach | Works Well On | Fails On |
+|---|---|---|
+| Signature-Based | Known variants — fast, precise | Novel and polymorphic ransomware |
+| Behavior-Based | Unknown variants | High false positive rate, alert fatigue |
+| Machine Learning | Generalizing to new families | Dataset currency, real-time latency |
+
+No single method closes all three gaps. That is the consistent finding across the full literature — and the direct justification for the hybrid model.
 
 ---
 
 ## Proposed Hybrid Detection Model
 
-The model operates in three stages:
+```
+[File Input]
+     │
+     ▼
+┌─────────────────────────┐
+│  STAGE 1                │
+│  Signature-Based Scan   │  ──── MATCH ──→ [ALERT: Known Ransomware]
+│  (Hash + Pattern DB)    │
+└─────────────────────────┘
+     │ NO MATCH
+     ▼
+┌─────────────────────────┐
+│  STAGE 2                │
+│  ML Behavioral Analysis │  ── MALICIOUS → [ALERT: Novel Variant]
+│  Random Forest /        │
+│  Gradient Boosting      │
+└─────────────────────────┘
+     │ CLEAN
+     ▼
+┌─────────────────────────┐
+│  STAGE 3                │
+│  Ensemble Decision      │  → Final Verdict: CLEAN or RANSOMWARE
+└─────────────────────────┘
+```
 
-| Stage | Method | Purpose |
-|---|---|---|
-| Stage 1 | Signature-Based Scan | Rapid detection of known ransomware variants |
-| Stage 2 | ML Behavioral Analysis | Detection of novel/zero-day variants via pattern recognition |
-| Stage 3 | Ensemble Decision | Combined output to minimize false negatives |
-
-**ML Algorithms analyzed:** Random Forest, Gradient Boosting, SVM, Decision Trees  
-**Behavioral Indicators monitored:** Mass file encryption, unauthorized file access, abnormal I/O patterns
-
----
-
-## Detection Methodology Comparison
-
-| Approach | Strengths | Limitations |
-|---|---|---|
-| Signature-Based | Fast, accurate for known threats | Ineffective against new/polymorphic variants |
-| Heuristic / Behavior-Based | Detects unknown behavior | High false positives, computational overhead |
-| Machine Learning | Adaptive, pattern-based | Requires labeled data, real-time latency |
-| **Hybrid (Proposed)** | **Comprehensive coverage, lower FP rate** | **Complexity of integration** |
+Stage 1 eliminates known threats cheaply before ML inference runs. Stage 2 handles what signatures miss. Stage 3 flags if either stage triggers — a deliberate design choice that prioritizes missed detections over false positives, given the asymmetric cost of ransomware reaching files.
 
 ---
 
 ## Key Findings
 
-Across 20+ surveyed papers, five patterns held consistently regardless of which specific studies or datasets were analyzed:
+- No single detection method handled both known and zero-day variants without trading off real-time performance or false positive rates — this held across every paper reviewed
+- Signature scanning as a Stage 1 pre-filter meaningfully reduces ML inference load without sacrificing coverage
+- Random Forest and Gradient Boosting consistently outperformed deep learning for real-time endpoint use — comparable accuracy, significantly lower compute cost
+- The ensemble decision rule (flag if either stage triggers) was the most consequential design choice — it trades a small FP increase for a significant reduction in missed detections
+- Nearly all surveyed papers optimized for accuracy while ignoring operational constraints — false positive burden, latency at scale, and SIEM integration were rarely measured
 
-**No single detection method closes all three gaps.** Every paper demonstrated the same ceiling — high accuracy on what it was designed for, structural failure on what it wasn't. Signature methods hit 99% on known threats and 0% on novel variants. Behavioral methods caught unknown activity but generated false positive rates that weren't operationally sustainable. ML methods generalised well but introduced latency and dataset currency problems. That consistent three-way failure across the entire literature is what drives the hybrid design.
+---
+
+## MITRE ATT&CK Alignment
+
+| Tactic | Technique | ID |
+|---|---|---|
+| Impact | Data Encrypted for Impact | T1486 |
+| Defense Evasion | Obfuscated Files or Information | T1027 |
+| Execution | User Execution: Malicious File | T1204.002 |
+| Command & Control | Encrypted Channel | T1573 |
+| Impact | Inhibit System Recovery | T1490 |
+
+---
+
+## Repository Contents
+
+| Folder | Contents |
+|---|---|
+| `docs/` | Full research paper |
+| `analysis/` | Detection method breakdown and key findings across 20+ studies |
+| `research/` | Survey methodology |
+| `model/` | Architecture, algorithm selection rationale, pipeline diagram, and pseudocode |
+| `references/` | Annotated bibliography of all surveyed papers |
+
+---
+
+## Relevance to Security Operations
+
+Signature matching at Stage 1 maps directly to IOC-based alerting in Splunk and Microsoft Sentinel. The behavioral classification layer reflects anomaly detection rules written for endpoint telemetry in CrowdStrike or Defender for Endpoint. The ensemble decision structure mirrors tiered alert triage — high-confidence matches go to immediate response, behavioral signals feed analyst review queues.
+
+---
+
+## What I Found Interesting
+
+Most detection research optimizes for one metric — usually accuracy — without accounting for the operational environment it would run in. A model with 98% accuracy that adds 800ms latency per file operation is unusable at enterprise endpoint scale. The hybrid approach isn't just technically stronger — it's the only design that holds up when you think about it as something that has to run in production, integrated with real tooling, triaged by real analysts under real alert volume.
 
 **Signature scanning belongs at Stage 1 as a pre-filter, not as the primary defense.** It's the cheapest detection layer. Running it first means the ML classifier only processes what signatures couldn't resolve — a much smaller and more focused workload. This is what makes real-time hybrid detection feasible at enterprise scale.
 
