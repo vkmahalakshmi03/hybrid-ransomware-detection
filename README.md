@@ -1,4 +1,4 @@
-# Ransomware Detection Survey — Hybrid Detection Model
+# Ransomware Detection Survey - Hybrid Detection Model
 
 **Author:** Mahalakshmi Karthikeyan
 
