@@ -1,10 +1,5 @@
 # Ransomware Detection Survey — Hybrid Detection Model
 
-![Type](https://img.shields.io/badge/Type-Research%20Survey-blue)
-![Papers](https://img.shields.io/badge/Papers%20Reviewed-20-orange)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Source](https://img.shields.io/badge/Source-IEEE%20%7C%20ACM%20%7C%20Springer-lightgrey)
-
 **Author:** Mahalakshmi Karthikeyan
 
 ---
